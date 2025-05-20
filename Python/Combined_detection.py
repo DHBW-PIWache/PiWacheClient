@@ -1,0 +1,159 @@
+from datetime import datetime
+import cv2
+import time
+import wave
+import os
+import pyaudio
+import subprocess
+from picamera2 import Picamera2
+import sounddevice as sd
+import numpy as np
+
+DURATION = 0.5  # Sekunden für Geräuscherkennung
+THRESHOLD = 0.015
+COOLDOWN_TIME = 5  # Sekunden Cooldown nach jeder Aufnahme
+
+VIDEO_PATH_RAW = "/home/berry/Videos/video.h264"
+AUDIO_PATH = "/home/berry/Videos/audio.wav"
+
+CHANNELS = 1
+RATE = 44100
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+
+def get_volume(indata):
+    if indata.ndim > 1:
+        indata = indata.flatten()
+    rms = np.sqrt(np.mean(indata**2))
+    return rms
+
+def record_audio(filename, stop_flag):
+    p = pyaudio.PyAudio()
+    stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE,
+                    input=True, frames_per_buffer=CHUNK)
+    frames = []
+    print("Audioaufnahme gestartet...")
+
+    while not stop_flag():
+        data = stream.read(CHUNK)
+        frames.append(data)
+
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+    print("Audioaufnahme beendet.")
+
+    with wave.open(filename, 'wb') as wf:
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(p.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(b''.join(frames))
+
+def motion_detection(picam2):
+    picam2.start()
+    for _ in range(10):
+        frame = picam2.capture_array()
+        time.sleep(0.05)
+
+    prev_frame = picam2.capture_array()
+    prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+    prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
+
+    is_recording = False
+    last_motion_time = None
+
+    while True:
+        frame = picam2.capture_array()
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (21, 21), 0)
+
+        delta = cv2.absdiff(prev_gray, gray)
+        thresh = cv2.threshold(delta, 25, 255, cv2.THRESH_BINARY)[1]
+        thresh = cv2.dilate(thresh, None, iterations=2)
+
+        contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        motion_detected = any(cv2.contourArea(c) > 600 for c in contours)
+        if motion_detected:
+            print("Bewegung erkannt!")
+
+        recording = sd.rec(int(DURATION * 44100), samplerate=44100, channels=1, dtype='float32')
+        sd.wait()
+        volume = get_volume(recording)
+        if volume > 0.01:
+            motion_detected = True
+            print(f"Geräusch erkannt: {volume:.4f}")
+
+        if motion_detected:
+            last_motion_time = time.time()
+            if not is_recording:
+                print("Starte Video- und Audioaufnahme...")
+
+                # Optional: Synchronisationssignal (Piepton)
+                try:
+                    os.system('beep -f 1000 -l 100')
+                except Exception:
+                    pass
+
+                # Audioaufnahme vorbereiten
+                stop_flag = False
+                def stop_audio(): return stop_flag
+
+                # Audioaufnahme im Hauptthread starten
+                import threading
+                audio_thread = threading.Thread(target=record_audio, args=(AUDIO_PATH, stop_audio))
+                audio_thread.start()
+
+                # Videoaufnahme direkt danach starten
+                picam2.start_and_record_video(VIDEO_PATH_RAW)
+                is_recording = True
+
+        if is_recording and last_motion_time and (time.time() - last_motion_time > 5):
+            print("Beende Aufnahme.")
+            is_recording = False
+            # Stoppe Videoaufnahme
+            picam2.stop_recording()
+            # Stoppe Audioaufnahme
+            stop_flag = True
+            audio_thread.join()
+            break
+
+        prev_gray = gray
+
+    picam2.stop()
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    VIDEO_PATH_FINAL = f"/home/berry/Videos/{timestamp}.mp4"
+
+    print("Füge Video und Audio zusammen...")
+
+    subprocess.run([
+        "ffmpeg",
+        "-y",
+        "-i", VIDEO_PATH_RAW,
+        "-i", AUDIO_PATH,
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",  # Audio/Video auf die kürzere Länge kürzen
+        "-strict", "experimental",
+        VIDEO_PATH_FINAL
+    ])
+
+    print(f"Fertig! Datei gespeichert unter: {VIDEO_PATH_FINAL}")
+
+    os.remove(VIDEO_PATH_RAW)
+    os.remove(AUDIO_PATH)
+    print("Temporäre Dateien gelöscht.")
+
+    print(f"Cooldown läuft ({COOLDOWN_TIME} Sekunden)...")
+    time.sleep(COOLDOWN_TIME)
+
+def main():
+    picam2 = Picamera2()
+    picam2.preview_configuration.main.size = (1920, 1080)
+
+    while True:
+        motion_detection(picam2)
+        print("Bereit für neue Bewegung...")
+
+if __name__ == "__main__":
+    main()
