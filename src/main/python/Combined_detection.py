@@ -8,9 +8,11 @@ import subprocess
 from picamera2 import Picamera2
 import sounddevice as sd
 import numpy as np
+import threading
 
+# --- Konfiguration ---
 DURATION = 0.5  # Sekunden für Geräuscherkennung
-THRESHOLD = 0.015
+THRESHOLD = 0.015 # Schwellwert für Geräuscherkennung
 COOLDOWN_TIME = 5  # Sekunden Cooldown nach jeder Aufnahme
 
 VIDEO_PATH_RAW = "/home/berry/Videos/video.h264"
@@ -22,19 +24,26 @@ CHUNK = 1024
 FORMAT = pyaudio.paInt16
 
 def get_volume(indata):
+    """
+    Berechnet die Lautstärke (RMS) eines Audiosignals.
+    """
     if indata.ndim > 1:
         indata = indata.flatten()
     rms = np.sqrt(np.mean(indata**2))
     return rms
 
-def record_audio(filename, stop_flag):
+def record_audio(filename, stop_event):
+    """
+    Nimmt Audio auf, bis stop_event.is_set() True zurückgibt.
+    Speichert die Aufnahme als WAV-Datei.
+    """
     p = pyaudio.PyAudio()
     stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE,
                     input=True, frames_per_buffer=CHUNK)
     frames = []
     print("Audioaufnahme gestartet...")
 
-    while not stop_flag():
+    while not stop_event.is_set():
         data = stream.read(CHUNK)
         frames.append(data)
 
@@ -50,7 +59,12 @@ def record_audio(filename, stop_flag):
         wf.writeframes(b''.join(frames))
 
 def motion_detection(picam2):
+    """
+    Erkennt Bewegung und/oder Geräusche und startet bei Erkennung die Aufnahme.
+    Kombiniert Audio- und Videoaufnahme und speichert das Ergebnis.
+    """
     picam2.start()
+    # Kamera aufwärmen
     for _ in range(10):
         frame = picam2.capture_array()
         time.sleep(0.05)
@@ -76,10 +90,11 @@ def motion_detection(picam2):
         if motion_detected:
             print("Bewegung erkannt!")
 
-        recording = sd.rec(int(DURATION * 44100), samplerate=44100, channels=1, dtype='float32')
+        # Geräuscherkennung
+        recording = sd.rec(int(DURATION * RATE), samplerate=RATE, channels=1, dtype='float32')
         sd.wait()
         volume = get_volume(recording)
-        if volume > 0.01:
+        if volume > THRESHOLD:
             motion_detected = True
             print(f"Geräusch erkannt: {volume:.4f}")
 
@@ -95,25 +110,22 @@ def motion_detection(picam2):
                     pass
 
                 # Audioaufnahme vorbereiten
-                stop_flag = False
-                def stop_audio(): return stop_flag
+                stop_event = threading.Event()
 
-                # Audioaufnahme im Hauptthread starten
-                import threading
-                audio_thread = threading.Thread(target=record_audio, args=(AUDIO_PATH, stop_audio))
+                # Audioaufnahme im Thread starten
+                audio_thread = threading.Thread(target=record_audio, args=(AUDIO_PATH, stop_event))
                 audio_thread.start()
 
-                # Videoaufnahme direkt danach starten
+                # Videoaufnahme starten
                 picam2.start_and_record_video(VIDEO_PATH_RAW)
                 is_recording = True
 
+        # Aufnahme beenden, wenn keine Bewegung/Geräusch mehr erkannt wird
         if is_recording and last_motion_time and (time.time() - last_motion_time > 5):
             print("Beende Aufnahme.")
             is_recording = False
-            # Stoppe Videoaufnahme
             picam2.stop_recording()
-            # Stoppe Audioaufnahme
-            stop_flag = True
+            stop_event.set()
             audio_thread.join()
             break
 
@@ -121,25 +133,29 @@ def motion_detection(picam2):
 
     picam2.stop()
 
+    # Video und Audio zusammenführen
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     VIDEO_PATH_FINAL = f"/home/berry/Videos/{timestamp}.mp4"
 
     print("Füge Video und Audio zusammen...")
 
-    subprocess.run([
+    result = subprocess.run([
         "ffmpeg",
         "-y",
         "-i", VIDEO_PATH_RAW,
         "-i", AUDIO_PATH,
         "-c:v", "copy",
         "-c:a", "aac",
-        "-shortest",  # Audio/Video auf die kürzere Länge kürzen
+        "-shortest",
         "-strict", "experimental",
         VIDEO_PATH_FINAL
-    ])
+    ], capture_output=True)
+    if result.returncode != 0:
+        print("Fehler beim Zusammenführen von Video und Audio:", result.stderr.decode())
+    else:
+        print(f"Fertig! Datei gespeichert unter: {VIDEO_PATH_FINAL}")
 
-    print(f"Fertig! Datei gespeichert unter: {VIDEO_PATH_FINAL}")
-
+    # Temporäre Dateien löschen
     os.remove(VIDEO_PATH_RAW)
     os.remove(AUDIO_PATH)
     print("Temporäre Dateien gelöscht.")
@@ -148,12 +164,19 @@ def motion_detection(picam2):
     time.sleep(COOLDOWN_TIME)
 
 def main():
+    """
+    Initialisiert die Kamera und startet die Bewegungserkennung in einer Endlosschleife.
+    """
     picam2 = Picamera2()
     picam2.preview_configuration.main.size = (1920, 1080)
 
-    while True:
-        motion_detection(picam2)
-        print("Bereit für neue Bewegung...")
+    try:
+        while True:
+            motion_detection(picam2)
+            print("Bereit für neue Bewegung...")
+    except KeyboardInterrupt:
+        print("Beendet durch Benutzer.")
+        picam2.stop()
 
 if __name__ == "__main__":
     main()

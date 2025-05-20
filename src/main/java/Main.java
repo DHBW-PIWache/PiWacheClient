@@ -1,39 +1,29 @@
-
-
-
-import java.io.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Einstiegspunkt der Anwendung.
+ * Führt periodisch eine Aufgabe aus, die mit dem Server kommuniziert.
+ */
 public class Main {
-    public static void main(String[] args) throws InterruptedException { //Exception kann wieder entfernt werden
-
-        // Pfad der output-Datei
+    public static void main(String[] args) {
+        // Pfad zum überwachten Ordner (ggf. aus Config laden)
         final String FOLDERPATH = "/home/berry/Videos";
 
-        // try {
-
+        // Initialisierung der Socket-Kommunikation
         SocketCommunication socket = new SocketCommunication();
 
-        // Erstellen eines ScheduledExecutorService mit einem Pool von 1 Thread
+        // ExecutorService für periodische Aufgaben (ein Thread)
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-        // Definieren der Aufgabe, die alle 3 Minuten ausgeführt werden soll
-        Runnable task = new Runnable() {
-            @Override
-            public void run() {
-                // Hier kannst du den Code einfügen, der alle 3 Minuten ausgeführt werden soll
-                System.out.println("Aufgabe ausgeführt: " + System.currentTimeMillis());
-                
-                socket.pingServer(FOLDERPATH);
-              
-            }
+        // Aufgabe, die periodisch ausgeführt wird
+        Runnable task = () -> {
+            System.out.println("Aufgabe ausgeführt: " + System.currentTimeMillis());
+            socket.pingServer(FOLDERPATH);
         };
 
-        // Planen der Aufgabe, die alle 3 Minuten ausgeführt wird
+        // Aufgabe alle 1 Minute ausführen (Initialverzögerung: 0)
         scheduler.scheduleAtFixedRate(task, 0, 1, TimeUnit.MINUTES);
-
-       
     }
 }
