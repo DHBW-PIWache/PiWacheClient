@@ -92,7 +92,7 @@ def motion_detection(picam2):
                 audio_thread.start()
                 recording = True
 
-        # Wenn Bewegung >5 Sekunden nicht mehr erkannt wird: Aufnahme beenden
+        # Wenn Bewegung >X Sekunden nicht mehr erkannt wird: Aufnahme beenden
         if recording and last_motion_time and (time.time() - last_motion_time > 5):
             print("Beende Aufnahme.")
             recording = False

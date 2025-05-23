@@ -9,11 +9,15 @@ from picamera2 import Picamera2
 import sounddevice as sd
 import numpy as np
 import threading
+import config_loader
 
 # --- Konfiguration ---
-DURATION = 0.5  # Sekunden für Geräuscherkennung
-THRESHOLD = 0.015 # Schwellwert für Geräuscherkennung
-COOLDOWN_TIME = 5  # Sekunden Cooldown nach jeder Aufnahme
+DURATION = float(config_loader.get("audio_detection_duration", 0.5))  # Sekunden für Geräuscherkennung
+THRESHOLD = float(config_loader.get("audio_threshold", 0.015))        # Schwellwert für Geräuscherkennung
+COOLDOWN_TIME = int(config_loader.get("cooldown_time", 5))            # Sekunden Cooldown nach jeder Aufnahme
+MOVEMENT_THRESHOLD = int(config_loader.get("movement_threshold", 500)) # Schwellwert für Bewegungserkennung
+VIDEO_RESOLUTION = eval(config_loader.get("video_resolution", "(1920,1080)")) # tuple
+TIME_TO_STOP = int(config_loader.get("time_to_stop", 15))              # Sekunden bis Aufnahmeende
 
 VIDEO_PATH_RAW = "/home/berry/Videos/video.h264"
 AUDIO_PATH = "/home/berry/Videos/audio.wav"
@@ -86,7 +90,7 @@ def motion_detection(picam2):
         thresh = cv2.dilate(thresh, None, iterations=2)
 
         contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        motion_detected = any(cv2.contourArea(c) > 600 for c in contours)
+        motion_detected = any(cv2.contourArea(c) > MOVEMENT_THRESHOLD for c in contours)
         if motion_detected:
             print("Bewegung erkannt!")
 
@@ -121,7 +125,7 @@ def motion_detection(picam2):
                 is_recording = True
 
         # Aufnahme beenden, wenn keine Bewegung/Geräusch mehr erkannt wird
-        if is_recording and last_motion_time and (time.time() - last_motion_time > 5):
+        if is_recording and last_motion_time and (time.time() - last_motion_time > TIME_TO_STOP):
             print("Beende Aufnahme.")
             is_recording = False
             picam2.stop_recording()
@@ -168,7 +172,7 @@ def main():
     Initialisiert die Kamera und startet die Bewegungserkennung in einer Endlosschleife.
     """
     picam2 = Picamera2()
-    picam2.preview_configuration.main.size = (1920, 1080)
+    picam2.preview_configuration.main.size = VIDEO_RESOLUTION
 
     try:
         while True:
