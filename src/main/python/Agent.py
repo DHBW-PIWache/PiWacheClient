@@ -63,7 +63,8 @@ def video_feed():
     global detection_active, streaming_active
 
     if detection_active:
-        return "Detection läuft – Stream nicht möglich", 409
+        stop_motion()
+        time.sleep(1) 
 
     def generate_frames():
         global streaming_active
