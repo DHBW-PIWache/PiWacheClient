@@ -107,12 +107,6 @@ def motion_detection(picam2):
             if not is_recording:
                 print("Starte Video- und Audioaufnahme...")
 
-                # Optional: Synchronisationssignal (Piepton)
-                try:
-                    os.system('beep -f 1000 -l 100')
-                except Exception:
-                    pass
-
                 # Audioaufnahme vorbereiten
                 stop_event = threading.Event()
 
