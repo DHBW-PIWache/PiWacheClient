@@ -10,6 +10,7 @@ import sounddevice as sd
 import numpy as np
 import threading
 import config_loader
+from threading import Event, Thread
 
 # --- Konfiguration ---
 DURATION = float(config_loader.get("audio_detection_duration", 0.5))  # Sekunden für Geräuscherkennung
@@ -62,27 +63,28 @@ def record_audio(filename, stop_event):
         wf.setframerate(RATE)
         wf.writeframes(b''.join(frames))
 
-def motion_detection(picam2):
+def motion_detection(stop_flag):
     """
     Erkennt Bewegung und/oder Geräusche und startet bei Erkennung die Aufnahme.
     Kombiniert Audio- und Videoaufnahme und speichert das Ergebnis.
     """
+    picam2 = Picamera2()
+    config = picam2.create_preview_configuration(main={"size": VIDEO_RESOLUTION}) # Auflösung aus Config verwenden
+    picam2.configure(config)
     picam2.start()
     # Kamera aufwärmen
     for _ in range(10):
         frame = picam2.capture_array()
         time.sleep(0.05)
 
-    prev_frame = picam2.capture_array()
-    prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+    prev_gray = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_BGR2GRAY)
     prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
 
     is_recording = False
     last_motion_time = None
 
-    while True:
-        frame = picam2.capture_array()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    while not stop_flag.is_set():
+        gray = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
         delta = cv2.absdiff(prev_gray, gray)
@@ -130,6 +132,8 @@ def motion_detection(picam2):
         prev_gray = gray
 
     picam2.stop()
+    picam2.close()
+    print("Kamera gestoppt.")
 
     # Video und Audio zusammenführen
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -161,20 +165,11 @@ def motion_detection(picam2):
     print(f"Cooldown läuft ({COOLDOWN_TIME} Sekunden)...")
     time.sleep(COOLDOWN_TIME)
 
-def main():
+def motion_loop(stop_flag):
+    
     """
-    Initialisiert die Kamera und startet die Bewegungserkennung in einer Endlosschleife.
+    Startet die Bewegungserkennung in einer Endlosschleife.
     """
-    picam2 = Picamera2()
-    picam2.preview_configuration.main.size = VIDEO_RESOLUTION
-
-    try:
-        while True:
-            motion_detection(picam2)
-            print("Bereit für neue Bewegung...")
-    except KeyboardInterrupt:
-        print("Beendet durch Benutzer.")
-        picam2.stop()
-
-if __name__ == "__main__":
-    main()
+    while not stop_flag.is_set():
+        motion_detection(stop_flag)
+        print("Bereit für neue Bewegung...")

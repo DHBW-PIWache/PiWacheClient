@@ -1,0 +1,2 @@
+# Ignoriere alle .class-Dateien im gesamten Projekt
+*.class
