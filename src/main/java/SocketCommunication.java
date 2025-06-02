@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.net.UnknownHostException;
+import java.net.InetAddress;
 
 /**
  * Stellt Methoden zur Kommunikation mit dem Server bereit.
@@ -17,11 +19,16 @@ public class SocketCommunication {
      * Überträgt alle .mp4-Videos im angegebenen Ordner an den Server.
      * Registriert den Client, falls keine Videos vorhanden sind.
      * @param folderPath Pfad zum Video-Ordner
+     * @throws UnknownHostException 
      */
-    public void pingServer(String folderPath) {
+    public void pingServer(String folderPath) throws UnknownHostException {
         String serverAddress = Config.get("server.address");
         int serverPort = Config.getInt("server.port");
-        String piName = Config.get("pi.name");
+
+        InetAddress localHost = InetAddress.getLocalHost();
+        String hostname = localHost.getHostName();
+        String piName = hostname;
+        System.out.println(hostname);
 
         File folder = new File(folderPath);
         File[] videoFiles = folder.listFiles((dir, name) -> name.endsWith(".mp4"));

@@ -5,6 +5,7 @@ import time
 from picamera2 import Picamera2
 from PIL import Image
 import io
+import subprocess
 
 app = Flask(__name__)
 
@@ -92,6 +93,11 @@ def video_feed():
             streaming_active = False
 
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/restart', methods=['POST'])
+def restart_agent():
+    subprocess.Popen(["systemctl", "restart", "agent.service"])  # oder entsprechender Restart-Befehl
+    return {"status": "restarting"}, 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True)

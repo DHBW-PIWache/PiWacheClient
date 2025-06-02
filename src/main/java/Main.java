@@ -1,3 +1,4 @@
+import java.net.UnknownHostException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,7 +21,11 @@ public class Main {
         // Aufgabe, die periodisch ausgeführt wird
         Runnable task = () -> {
             System.out.println("Aufgabe ausgeführt: " + System.currentTimeMillis());
-            socket.pingServer(FOLDERPATH);
+            try {
+                socket.pingServer(FOLDERPATH);
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+            }
         };
 
         // Aufgabe alle 1 Minute ausführen (Initialverzögerung: 0)
