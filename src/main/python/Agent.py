@@ -96,7 +96,7 @@ def video_feed():
 
 @app.route('/restart', methods=['POST'])
 def restart_agent():
-    subprocess.Popen(["systemctl", "restart", "agent.service"])  # oder entsprechender Restart-Befehl
+    subprocess.Popen(["sudo","systemctl", "restart", "agent.service"])
     return {"status": "restarting"}, 200
 
 if __name__ == '__main__':
