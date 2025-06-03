@@ -24,11 +24,9 @@ public class SocketCommunication {
     public void pingServer(String folderPath) throws UnknownHostException {
         String serverAddress = Config.get("server.address");
         int serverPort = Config.getInt("server.port");
-
         InetAddress localHost = InetAddress.getLocalHost();
-        String hostname = localHost.getHostName();
-        String piName = hostname;
-        System.out.println(hostname);
+        String piName = localHost.getHostName();
+        
 
         File folder = new File(folderPath);
         File[] videoFiles = folder.listFiles((dir, name) -> name.endsWith(".mp4"));
