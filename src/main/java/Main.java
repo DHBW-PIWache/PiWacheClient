@@ -29,6 +29,7 @@ public class Main {
         };
 
         // Aufgabe alle 1 Minute ausführen (Initialverzögerung: 0)
-        scheduler.scheduleAtFixedRate(task, 0, 1, TimeUnit.MINUTES);
+        int sending_interval = Integer.parseInt(Config.get("sending.interval"));
+        scheduler.scheduleAtFixedRate(task, 0, sending_interval, TimeUnit.MINUTES);
     }
 }
