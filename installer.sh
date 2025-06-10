@@ -147,6 +147,9 @@ echo "🚀 Aktiviere und starte Main Service..."
 sudo systemctl enable main.service
 sudo systemctl start main.service
 
+sudo systemctl restart main.service
+sudo systemctl restart agent.service
+
 # Service-Status anzeigen
 echo "📋 Status von agent.service:"
 sudo systemctl status agent.service --no-pager
