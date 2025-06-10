@@ -41,6 +41,7 @@ java -version
 # SDKMAN installieren
 echo "📦 Installiere SDKMAN..."
 curl -s "https://get.sdkman.io/" | bash
+set +u
 source "$HOME/.sdkman/bin/sdkman-init.sh"
 
 # Maven installieren
