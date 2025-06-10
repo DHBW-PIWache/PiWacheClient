@@ -46,7 +46,7 @@ source "$HOME/.sdkman/bin/sdkman-init.sh"
 
 # Maven installieren
 echo "⚙️ Installiere Maven..."
-sdk install maven
+sudo apt install maven
 
 # Installationen prüfen
 sdk version
