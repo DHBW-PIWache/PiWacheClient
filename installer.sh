@@ -3,6 +3,7 @@
 set -e  # Script bei Fehler abbrechen
 set -u  # Fehler bei Verwendung nicht gesetzter Variablen
 
+
 echo "🚀 Starte PiWacheClient Setup..."
 
 # System aktualisieren
