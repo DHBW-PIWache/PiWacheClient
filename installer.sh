@@ -77,4 +77,81 @@ else
     echo "nano $CONFIG_FILE"
 fi
 
-echo "✅ Setup abgeschlossen. Starte ggf. neu, um alle Änderungen zu aktivieren."
+# Services einrichten
+echo "🛠️ Erstelle Agent Service..."
+
+sudo bash -c 'cat > /etc/systemd/system/agent.service' <<EOF
+[Unit]
+Description=Autostart fuer Agent.py
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/berry/PiWacheClient/src/main/python/Agent.py
+WorkingDirectory=/home/berry/
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=berry
+Group=video
+Group=audio
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "✅ Agent Service erstellt."
+
+# Java-Projekt kompilieren
+echo "🛠️ Kompiliere Java-Projekt..."
+cd /home/berry/PiWacheClient/src/main/java
+javac Main.java
+echo "✅ Java-Projekt kompiliert."
+
+echo "🛠️ Erstelle Main Service..."
+
+sudo bash -c 'cat > /etc/systemd/system/main.service' <<EOF
+[Unit]
+Description=Autostart fuer Main.java
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/java -cp /home/berry/PiWacheClient/src/main/java Main
+WorkingDirectory=/home/berry/PiWacheClient
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=berry
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "✅ Main Service erstellt."
+
+# Services aktivieren und starten
+echo "🔄 Lade systemd neu..."
+sudo systemctl daemon-reexec
+
+echo "🚀 Aktiviere und starte Agent Service..."
+sudo systemctl enable agent.service
+sudo systemctl start agent.service
+
+echo "🚀 Aktiviere und starte Main Service..."
+sudo systemctl enable main.service
+sudo systemctl start main.service
+
+# Service-Status anzeigen
+echo "📋 Status von agent.service:"
+sudo systemctl status agent.service --no-pager
+
+echo "📋 Status von main.service:"
+sudo systemctl status main.service --no-pager
+
+echo "✅ Setup und Service-Initialisierung abgeschlossen."
+
+echo "ℹ️ Alle aktiven Services anzeigen mit:"
+echo "systemctl list-unit-files --type=service --state=enabled"
+
+echo "ℹ️ System ggf. neu starten, um alle Änderungen vollständig zu übernehmen."
