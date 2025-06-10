@@ -24,7 +24,7 @@ public class SocketCommunication {
     public void pingServer(String folderPath) throws UnknownHostException {
         String serverAddress = Config.get("server.address");
         int serverPort = Config.getInt("server.port");
-        String piName = ("pi.name");
+        String piName = Config.get("pi.name");
         
 
         File folder = new File(folderPath);
