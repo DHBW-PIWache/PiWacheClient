@@ -72,11 +72,15 @@ CONFIG_FILE="$PROJECT_DIR/config.properties"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "⚠️ Konfigurationsdatei $CONFIG_FILE nicht gefunden!"
     echo "Bitte manuell anlegen oder kopieren."
+    exit 1
 else
     echo "✅ Konfigurationsdatei gefunden: $CONFIG_FILE"
-    echo "Du kannst sie jetzt anpassen mit:"
-    echo "nano $CONFIG_FILE"
+    echo "🔧 Bitte passe nun die Konfiguration an. Der Editor öffnet sich jetzt..."
+    sleep 2
+    nano "$CONFIG_FILE"
+    echo "✅ Konfiguration abgeschlossen. Setup wird fortgesetzt..."
 fi
+
 
 # Services einrichten
 echo "🛠️ Erstelle Agent Service..."
