@@ -1,3 +1,4 @@
+
 from datetime import datetime
 import cv2
 import time
@@ -109,14 +110,41 @@ def motion_detection(stop_flag):
             if not is_recording:
                 print("Starte Video- und Audioaufnahme...")
 
-                # Audioaufnahme vorbereiten
                 stop_event = threading.Event()
+                audio_ready = threading.Event()
 
                 # Audioaufnahme im Thread starten
-                audio_thread = threading.Thread(target=record_audio, args=(AUDIO_PATH, stop_event))
-                audio_thread.start()
+                def record_audio_sync(filename, stop_event, ready_event):
+                    p = pyaudio.PyAudio()
+                    stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE,
+                                    input=True, frames_per_buffer=CHUNK)
+                    frames = []
+                    ready_event.set()  # Signalisiert, dass Audioaufnahme bereit ist
+                    print("Audioaufnahme gestartet...")
 
-                # Videoaufnahme starten
+                    while not stop_event.is_set():
+                        data = stream.read(CHUNK)
+                        frames.append(data)
+
+                    stream.stop_stream()
+                    stream.close()
+                    p.terminate()
+                    print("Audioaufnahme beendet.")
+
+                    with wave.open(filename, 'wb') as wf:
+                        wf.setnchannels(CHANNELS)
+                        wf.setsampwidth(p.get_sample_size(FORMAT))
+                        wf.setframerate(RATE)
+                        wf.writeframes(b''.join(frames))
+
+                audio_thread = threading.Thread(
+                    target=record_audio_sync,
+                    args=(AUDIO_PATH, stop_event, audio_ready)
+                )
+                audio_thread.start()
+                audio_ready.wait()  # Warten bis Audioaufnahme bereit ist
+
+                # Jetzt Videoaufnahme starten (direkt nach Bestätigung)
                 picam2.start_and_record_video(VIDEO_PATH_RAW)
                 is_recording = True
 
